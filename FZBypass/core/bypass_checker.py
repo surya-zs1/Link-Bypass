@@ -20,7 +20,6 @@ fmed_list = [
     "mm9842.com",
 ]
 
-
 def is_share_link(url):
     return bool(
         match(
@@ -29,7 +28,6 @@ def is_share_link(url):
         )
     )
 
-
 def is_excep_link(url):
     return bool(
         match(
@@ -37,7 +35,6 @@ def is_excep_link(url):
             url,
         )
     )
-
 
 async def direct_link_checker(link, onlylink=False):
     domain = urlparse(link).hostname
@@ -65,12 +62,15 @@ async def direct_link_checker(link, onlylink=False):
     elif "drive.google.com" in link:
         return get_dl(link, True)
 
+    # ADVANCED UNIVERSAL & GADGETSWEB ROUTES
+    elif any(x in domain for x in ["gadgetsweb.", "publicearn.", "modijiurl."]):
+        blink = await advanced_bypass(link)
+
     # DDL Links
     elif bool(match(r"https?:\/\/try2link\.\S+", link)):
         blink = await try2link(link)
     elif bool(match(r"https?:\/\/(gyanilinks|gtlinks)\.\S+", link)):
         blink = await gyanilinks(link)
-        
     elif bool(match(r"https?:\/\/adrinolinks\.\S+", link)):
         blink = await transcript(
             link, "https://adrinolinks.in", "https://bhojpuritop.in/", 8
@@ -83,12 +83,10 @@ async def direct_link_checker(link, onlylink=False):
         blink = await transcript(
             link, "https://anlinks.in/", "https://dsblogs.fun/", 8
         )
-    
     elif bool(match(r"https?:\/\/ronylink\.\S+", link)):
         blink = await transcript(
             link, "https://go.ronylink.com/", "https://livejankari.com/", 3
         )
-    
     elif bool(match(r"https?:\/\/.+\.evolinks\.\S+", link)):
         blink = await transcript(
             link, "https://ads.evolinks.in/" , link, 3
@@ -136,9 +134,6 @@ async def direct_link_checker(link, onlylink=False):
     elif bool(match(r"https?:\/\/m.easysky\.\S+", link)):
         blink = await transcript(
             link, "https://techy.veganab.co/", "https://camdigest.com/", 5
-        )
-        blink = await transcript(
-            link, "https://vip.linkbnao.com", "https://ffworld.xyz/", 2
         )
     elif bool(match(r"https?:\/\/.+\.tnlink\.\S+", link)):
         blink = await transcript(
@@ -236,7 +231,6 @@ async def direct_link_checker(link, onlylink=False):
         blink = await transcript(
             link, "https://getlink.sxslink.com/", "https://cinemapettai.in/", 5
         )
-    
     elif bool(match(r"https?:\/\/moneycase\.\S+", link)):
         blink = await transcript(
             link, "https://last.moneycase.link/", "https://www.infokeeda.xyz/", 3.1
@@ -345,14 +339,6 @@ async def direct_link_checker(link, onlylink=False):
         blink = await transcript(
             link, "https://pdiskshortener.com/", "", 10
         )
-    elif bool(match(r"https?:\/\/publicearn\.\S+", link)):
-        blink = await transcript(
-            link, "https://publicearn.com/", "https://careersides.com/", 4.9
-        )
-    elif bool(match(r"https?:\/\/modijiurl\.\S+", link)):
-        blink = await transcript(
-            link, "https://modijiurl.com/", "https://loanoffering.in/", 8
-        )
     elif bool(match(r"https?:\/\/linkshortx\.\S+", link)):
         blink = await transcript(
             link, "https://linkshortx.in/", "https://nanotech.org.in/", 4.9
@@ -429,9 +415,15 @@ async def direct_link_checker(link, onlylink=False):
     elif bool(match(r"https?:\/\/.+\.technicalatg\.\S+", link)):
         raise DDLException("Bypass Not Allowed !")
     else:
-        raise DDLException(
-            f"<i>No Bypass Function Found for your Link :</i> <code>{link}</code>"
-        )
+        # Fallback Check with Advanced Generic Bypasser before throwing an error
+        try:
+            blink = await advanced_bypass(link)
+        except DDLException as e:
+            raise e
+        except Exception as e:
+            raise DDLException(
+                f"<i>No Bypass Function Found for your Link :</i> <code>{link}</code>\n<b>Debug Error:</b> {e}"
+            )
 
     if onlylink:
         return blink
