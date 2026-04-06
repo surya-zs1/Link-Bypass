@@ -2,7 +2,7 @@ FROM python:3.10-slim-bullseye
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies and clean up to save space
 RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y --no-install-recommends git curl && \
     apt-get clean && \
@@ -12,11 +12,11 @@ RUN apt-get update && apt-get upgrade -y && \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application code
+# Copy the application code
 COPY . .
 
-# Ensure the start script is executable
+# Set permissions for the start script
 RUN chmod +x start.sh
 
-# Command to run the bot
+# Run the bot
 CMD ["bash", "start.sh"]
