@@ -1,4 +1,4 @@
-from requests import post as rpost ,get as rget
+from requests import post as rpost, get as rget
 from re import findall, compile, search
 from time import sleep, time
 from asyncio import sleep as asleep
@@ -41,7 +41,7 @@ async def advanced_bypass(url: str) -> str:
         data = {inp.get("name"): inp.get("value") for inp in inputs if inp.get("name") and inp.get("value")}
         
         if data:
-            await asleep(5) # Wait for potential timer
+            await asleep(6) # Wait for potential timer
             
             # Method A: Try /links/go (Linksly / Try2Link clones)
             post_headers = {"X-Requested-With": "XMLHttpRequest", "Referer": url}
@@ -121,7 +121,6 @@ async def yandex_disk(url: str) -> str:
     except KeyError:
         raise DDLException("File not Found / Download Limit Exceeded")
 
-
 async def mediafire(url: str):
     if final_link := findall(
         r"https?:\/\/download\d+\.mediafire\.com\/\S+\/\S+\/\S+", url
@@ -144,7 +143,6 @@ async def mediafire(url: str):
     else:
         raise DDLException("No links found in this page")
 
-
 async def shrdsk(url: str) -> str:
     cget = create_scraper().request
     try:
@@ -161,7 +159,6 @@ async def shrdsk(url: str) -> str:
     if "type" in res and res["type"].lower() == "upload" and "video_url" in res:
         return quote(res["video_url"], safe=":/")
     raise DDLException("No Direct Link Found")
-
 
 async def terabox(url: str) -> str:
     sess = Session()
@@ -229,7 +226,6 @@ async def try2link(url: str) -> str:
                 except:        
                     raise DDLException("Link Extraction Failed")
 
-
 async def gyanilinks(url: str) -> str:
     code = url.split('/')[-1]
     useragent = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
@@ -250,7 +246,6 @@ async def gyanilinks(url: str) -> str:
                     return (await links.json())['url']
                 except Exception:
                       raise DDLException("Link Extraction Failed")
-
 
 async def ouo(url: str):
     tempurl = url.replace("ouo.io", "ouo.press")
