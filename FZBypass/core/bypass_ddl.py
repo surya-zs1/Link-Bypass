@@ -1,5 +1,5 @@
 from requests import post as rpost ,get as rget
-from re import findall, compile
+from re import findall, compile, search
 from time import sleep, time
 from asyncio import sleep as asleep
 from urllib.parse import quote, urlparse
@@ -24,63 +24,88 @@ async def get_readable_time(seconds):
 # ADVANCED GENERIC BYPASS FOR MAJOR CLONES & GADGETSWEB
 # ==========================================
 async def advanced_bypass(url: str) -> str:
-    domain = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
-    useragent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    
-    # 1. Check if the URL contains a direct base64 encoded 'id' containing 'http'
     try:
-        from urllib.parse import parse_qs
-        query_id = parse_qs(urlparse(url).query).get("id")
-        if query_id:
-            decoded = base64.b64decode(query_id[0]).decode('utf-8')
-            if decoded.startswith("http"):
-                return decoded
-    except:
-        pass
-
-    # 2. General Transcript / Timer Bypass Logic
-    async with ClientSession() as session:
-        async with session.get(url, headers={'User-Agent': useragent}) as res:
-            html = await res.text()
-            cookies = res.cookies
+        scraper = create_scraper(allow_brotli=False)
+        domain = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
         
-        soup = BeautifulSoup(html, "html.parser")
+        # 1. Initial GET request
+        resp = scraper.get(url)
+        soup = BeautifulSoup(resp.text, "html.parser")
         
-        # Check for Cloudflare/DDoS protection
-        title_tag = soup.find('title')
-        if title_tag and 'Just a moment...' in title_tag.text:
-            raise DDLException("Unable To Bypass Due To Cloudflare Protection")
-            
-        data = {inp.get('name'): inp.get('value') for inp in soup.find_all('input') if inp.get('name') and inp.get('value')}
+        # Cloudflare Check
+        if soup.find('title') and 'Just a moment' in soup.find('title').text:
+            raise DDLException("Bypass Failed: Cloudflare Protected / Blocked")
         
-        # Simulated delay for timer-based sites
-        await asleep(6)
+        # 2. Extract all hidden inputs
+        inputs = soup.find_all("input")
+        data = {inp.get("name"): inp.get("value") for inp in inputs if inp.get("name") and inp.get("value")}
         
-        # Try standard links/go endpoint (Used by Gadgetsweb, Try2Link clones, etc.)
         if data:
-            async with session.post(f"{domain}/links/go", data=data, headers={'Referer': url, 'X-Requested-With':'XMLHttpRequest', 'User-Agent': useragent}, cookies=cookies) as resp:
-                try:
-                    if 'application/json' in resp.headers.get('Content-Type', ''):
-                        json_resp = await resp.json()
-                        if 'url' in json_resp:
-                            return json_resp['url']
-                except Exception:
-                    pass
-        
-        # 3. Fallback: Check Meta Refresh tags
-        meta_refresh = soup.find("meta", attrs={"http-equiv": "refresh"})
-        if meta_refresh:
-            content = meta_refresh.get("content", "")
-            if "url=" in content.lower():
-                return content.split("url=")[-1].strip()
-
-        # 4. Fallback: Parse common button links
-        btn = soup.find("a", id="go-link") or soup.find("a", class_="btn btn-primary")
-        if btn and btn.get("href"):
-            if btn.get("href").startswith("http"):
+            await asleep(5) # Wait for potential timer
+            
+            # Method A: Try /links/go (Linksly / Try2Link clones)
+            post_headers = {"X-Requested-With": "XMLHttpRequest", "Referer": url}
+            post_resp = scraper.post(f"{domain}/links/go", data=data, headers=post_headers)
+            try:
+                json_data = post_resp.json()
+                if "url" in json_data:
+                    return json_data["url"]
+            except:
+                pass
+            
+            # Method B: Post to the same URL (Typical WP Safelink / Blogger Safelink)
+            post_resp2 = scraper.post(url, data=data, headers={"Referer": url})
+            soup2 = BeautifulSoup(post_resp2.text, "html.parser")
+            
+            # Check for redirect in the new page
+            meta = soup2.find("meta", attrs={"http-equiv": "refresh"})
+            if meta and "url=" in meta.get("content", "").lower():
+                return meta.get("content").split("url=")[-1].strip()
+                
+            # Method C: Find specific anchor tags after POST
+            btn = soup2.find("a", id="go-link") or soup2.find("a", class_="btn")
+            if btn and btn.get("href") and btn.get("href").startswith("http"):
                 return btn.get("href")
                 
-        raise DDLException("Advanced Link Extraction Failed")
+            # Method D: 2nd step POST (Dual page safelinks)
+            inputs2 = soup2.find_all("input")
+            data2 = {inp.get("name"): inp.get("value") for inp in inputs2 if inp.get("name") and inp.get("value")}
+            if data2 and data2 != data:
+                await asleep(5)
+                post_resp3 = scraper.post(url, data=data2, headers={"Referer": url})
+                soup3 = BeautifulSoup(post_resp3.text, "html.parser")
+                meta3 = soup3.find("meta", attrs={"http-equiv": "refresh"})
+                if meta3 and "url=" in meta3.get("content", "").lower():
+                    return meta3.get("content").split("url=")[-1].strip()
+
+        # 3. Check for meta refresh on initial page
+        meta = soup.find("meta", attrs={"http-equiv": "refresh"})
+        if meta and "url=" in meta.get("content", "").lower():
+            return meta.get("content").split("url=")[-1].strip()
+
+        # 4. Check for direct script redirect
+        script_redirect = search(r'window\.location\.href\s*=\s*["\'](http[^"\']+)["\']', resp.text)
+        if script_redirect:
+            return script_redirect.group(1)
+
+        script_redirect_2 = search(r'var\s+redirect_url\s*=\s*["\'](http[^"\']+)["\']', resp.text)
+        if script_redirect_2:
+            return script_redirect_2.group(1)
+
+        # 5. Fallback to free bypass API
+        try:
+            api_resp = scraper.get("https://bypass.pm/bypass2", params={"url": url}).json()
+            if api_resp.get("success") and api_resp.get("destination"):
+                return api_resp["destination"]
+        except:
+            pass
+
+        raise DDLException("No valid redirect or payload found in advanced_bypass.")
+        
+    except DDLException as e:
+        raise e
+    except Exception as e:
+        raise DDLException(f"Advanced Bypass Failed: {str(e)}")
 
 # ==========================================
 # EXISTING DDL FUNCTIONS
