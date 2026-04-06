@@ -2,7 +2,7 @@ from requests import post as rpost, get as rget
 from re import findall, compile, search
 from time import sleep, time
 from asyncio import sleep as asleep
-from urllib.parse import quote, urlparse
+from urllib.parse import quote, urlparse, urljoin
 import base64
 
 from bs4 import BeautifulSoup
@@ -28,6 +28,22 @@ async def advanced_bypass(url: str) -> str:
         scraper = create_scraper(allow_brotli=False)
         domain = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
         
+        # Helper to safely join relative URLs and prevent infinite self-loops
+        def safe_url(target):
+            if not target or target.lower().startswith("javascript"):
+                return None
+            target = target.strip("'\" \t\r\n")
+            joined = urljoin(url, target)
+            
+            parsed_url = urlparse(url)
+            parsed_joined = urlparse(joined)
+            
+            # Prevent infinite loop if the link redirects to itself with a minor garbage param (like ?&tm)
+            if parsed_url.netloc == parsed_joined.netloc and parsed_url.path == parsed_joined.path:
+                if "&tm" in parsed_joined.query or joined == url:
+                    return None
+            return joined
+            
         # 1. Initial GET request
         resp = scraper.get(url)
         soup = BeautifulSoup(resp.text, "html.parser")
@@ -41,15 +57,15 @@ async def advanced_bypass(url: str) -> str:
         data = {inp.get("name"): inp.get("value") for inp in inputs if inp.get("name") and inp.get("value")}
         
         if data:
-            await asleep(6) # Wait for potential timer
+            await asleep(5) # Wait for potential timer
             
             # Method A: Try /links/go (Linksly / Try2Link clones)
             post_headers = {"X-Requested-With": "XMLHttpRequest", "Referer": url}
             post_resp = scraper.post(f"{domain}/links/go", data=data, headers=post_headers)
             try:
                 json_data = post_resp.json()
-                if "url" in json_data:
-                    return json_data["url"]
+                if "url" in json_data and safe_url(json_data["url"]):
+                    return safe_url(json_data["url"])
             except:
                 pass
             
@@ -59,13 +75,18 @@ async def advanced_bypass(url: str) -> str:
             
             # Check for redirect in the new page
             meta = soup2.find("meta", attrs={"http-equiv": "refresh"})
-            if meta and "url=" in meta.get("content", "").lower():
-                return meta.get("content").split("url=")[-1].strip()
-                
+            if meta:
+                content = meta.get("content", "")
+                if "url=" in content.lower():
+                    extracted = content.lower().split("url=")[-1].strip()
+                    s_url = safe_url(extracted)
+                    if s_url: return s_url
+                    
             # Method C: Find specific anchor tags after POST
             btn = soup2.find("a", id="go-link") or soup2.find("a", class_="btn")
-            if btn and btn.get("href") and btn.get("href").startswith("http"):
-                return btn.get("href")
+            if btn and btn.get("href"):
+                s_url = safe_url(btn.get("href"))
+                if s_url: return s_url
                 
             # Method D: 2nd step POST (Dual page safelinks)
             inputs2 = soup2.find_all("input")
@@ -75,28 +96,44 @@ async def advanced_bypass(url: str) -> str:
                 post_resp3 = scraper.post(url, data=data2, headers={"Referer": url})
                 soup3 = BeautifulSoup(post_resp3.text, "html.parser")
                 meta3 = soup3.find("meta", attrs={"http-equiv": "refresh"})
-                if meta3 and "url=" in meta3.get("content", "").lower():
-                    return meta3.get("content").split("url=")[-1].strip()
+                if meta3:
+                    content3 = meta3.get("content", "")
+                    if "url=" in content3.lower():
+                        extracted3 = content3.lower().split("url=")[-1].strip()
+                        s_url3 = safe_url(extracted3)
+                        if s_url3: return s_url3
 
         # 3. Check for meta refresh on initial page
         meta = soup.find("meta", attrs={"http-equiv": "refresh"})
-        if meta and "url=" in meta.get("content", "").lower():
-            return meta.get("content").split("url=")[-1].strip()
+        if meta:
+            content = meta.get("content", "")
+            if "url=" in content.lower():
+                extracted = content.lower().split("url=")[-1].strip()
+                s_url = safe_url(extracted)
+                if s_url: return s_url
 
         # 4. Check for direct script redirect
-        script_redirect = search(r'window\.location\.href\s*=\s*["\'](http[^"\']+)["\']', resp.text)
+        script_redirect = search(r'window\.location\.href\s*=\s*["\']([^"\']+)["\']', resp.text)
         if script_redirect:
-            return script_redirect.group(1)
+            s_url = safe_url(script_redirect.group(1))
+            if s_url: return s_url
 
-        script_redirect_2 = search(r'var\s+redirect_url\s*=\s*["\'](http[^"\']+)["\']', resp.text)
+        script_redirect_2 = search(r'var\s+redirect_url\s*=\s*["\']([^"\']+)["\']', resp.text)
         if script_redirect_2:
-            return script_redirect_2.group(1)
+            s_url = safe_url(script_redirect_2.group(1))
+            if s_url: return s_url
+            
+        script_redirect_3 = search(r'window\.location\.assign\(["\']([^"\']+)["\']\)', resp.text)
+        if script_redirect_3:
+            s_url = safe_url(script_redirect_3.group(1))
+            if s_url: return s_url
 
         # 5. Fallback to free bypass API
         try:
             api_resp = scraper.get("https://bypass.pm/bypass2", params={"url": url}).json()
             if api_resp.get("success") and api_resp.get("destination"):
-                return api_resp["destination"]
+                s_url = safe_url(api_resp["destination"])
+                if s_url: return s_url
         except:
             pass
 
