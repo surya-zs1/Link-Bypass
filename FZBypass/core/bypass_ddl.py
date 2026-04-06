@@ -3,6 +3,7 @@ from re import findall, compile
 from time import sleep, time
 from asyncio import sleep as asleep
 from urllib.parse import quote, urlparse
+import base64
 
 from bs4 import BeautifulSoup
 from cloudscraper import create_scraper
@@ -19,6 +20,71 @@ async def get_readable_time(seconds):
     hours, minutes = divmod(minutes, 60)
     return f"{hours}h{minutes}m{seconds}s"
 
+# ==========================================
+# ADVANCED GENERIC BYPASS FOR MAJOR CLONES & GADGETSWEB
+# ==========================================
+async def advanced_bypass(url: str) -> str:
+    domain = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
+    useragent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    
+    # 1. Check if the URL contains a direct base64 encoded 'id' containing 'http'
+    try:
+        from urllib.parse import parse_qs
+        query_id = parse_qs(urlparse(url).query).get("id")
+        if query_id:
+            decoded = base64.b64decode(query_id[0]).decode('utf-8')
+            if decoded.startswith("http"):
+                return decoded
+    except:
+        pass
+
+    # 2. General Transcript / Timer Bypass Logic
+    async with ClientSession() as session:
+        async with session.get(url, headers={'User-Agent': useragent}) as res:
+            html = await res.text()
+            cookies = res.cookies
+        
+        soup = BeautifulSoup(html, "html.parser")
+        
+        # Check for Cloudflare/DDoS protection
+        title_tag = soup.find('title')
+        if title_tag and 'Just a moment...' in title_tag.text:
+            raise DDLException("Unable To Bypass Due To Cloudflare Protection")
+            
+        data = {inp.get('name'): inp.get('value') for inp in soup.find_all('input') if inp.get('name') and inp.get('value')}
+        
+        # Simulated delay for timer-based sites
+        await asleep(6)
+        
+        # Try standard links/go endpoint (Used by Gadgetsweb, Try2Link clones, etc.)
+        if data:
+            async with session.post(f"{domain}/links/go", data=data, headers={'Referer': url, 'X-Requested-With':'XMLHttpRequest', 'User-Agent': useragent}, cookies=cookies) as resp:
+                try:
+                    if 'application/json' in resp.headers.get('Content-Type', ''):
+                        json_resp = await resp.json()
+                        if 'url' in json_resp:
+                            return json_resp['url']
+                except Exception:
+                    pass
+        
+        # 3. Fallback: Check Meta Refresh tags
+        meta_refresh = soup.find("meta", attrs={"http-equiv": "refresh"})
+        if meta_refresh:
+            content = meta_refresh.get("content", "")
+            if "url=" in content.lower():
+                return content.split("url=")[-1].strip()
+
+        # 4. Fallback: Parse common button links
+        btn = soup.find("a", id="go-link") or soup.find("a", class_="btn btn-primary")
+        if btn and btn.get("href"):
+            if btn.get("href").startswith("http"):
+                return btn.get("href")
+                
+        raise DDLException("Advanced Link Extraction Failed")
+
+# ==========================================
+# EXISTING DDL FUNCTIONS
+# ==========================================
 
 async def yandex_disk(url: str) -> str:
     cget = create_scraper().request
@@ -140,9 +206,6 @@ async def try2link(url: str) -> str:
 
 
 async def gyanilinks(url: str) -> str:
-    '''
-    Based on https://github.com/whitedemon938/Bypass-Scripts
-    '''
     code = url.split('/')[-1]
     useragent = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
     DOMAIN = "https://go.bloggingaro.com"
@@ -199,23 +262,6 @@ async def ouo(url: str):
 
     return res.headers.get("Location")
 
-
-async def mdisk(url: str) -> str:
-    """
-    Depreciated ( Code Preserved )
-    """
-    header = {
-        "Accept": "*/*",
-        "Accept-Language": "en-US,en;q=0.5",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Referer": "https://mdisk.me/",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.82 Safari/537.36",
-    }
-    URL = f'https://diskuploader.entertainvideo.com/v1/file/cdnurl?param={url.rstrip("/").split("/")[-1]}'
-    res = rget(url=URL, headers=header).json()
-    return res["download"] + "\n\n" + res["source"]
-
-
 async def transcript(url: str, DOMAIN: str, ref: str, sltime) -> str:
     code = url.rstrip("/").split("/")[-1]
     useragent = 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'
@@ -238,20 +284,17 @@ async def transcript(url: str, DOMAIN: str, ref: str, sltime) -> str:
                   except Exception:
                       raise DDLException("Link Extraction Failed")
 
-
 async def justpaste(url: str):
     resp = rget(url, verify=False)
     soup = BeautifulSoup(resp.text, "html.parser")
     inps = soup.select('div[id="articleContent"] > p')
     return ", ".join(elem.string for elem in inps)
     
-
 async def linksxyz(url: str):
     resp = rget(url)
     soup = BeautifulSoup(resp.text, "html.parser")
     inps = soup.select('div[id="redirect-info"] > a')
     return inps[0]["href"]
-
 
 async def shareus(url: str) -> str:
     DOMAIN = f"https://api.shrslink.xyz"
@@ -272,7 +315,6 @@ async def shareus(url: str) -> str:
     else:
         raise DDLException("ID Error")     
 
-
 async def dropbox(url: str) -> str:
     return (
         url.replace("www.", "")
@@ -280,14 +322,12 @@ async def dropbox(url: str) -> str:
         .replace("?dl=0", "")
     )
 
-
 async def linkvertise(url: str) -> str:
     resp = rget("https://bypass.pm/bypass2", params={"url": url}).json()
     if resp["success"]:
         return resp["destination"]
     else:
         raise DDLException(resp["msg"])
-
 
 async def rslinks(url: str) -> str:
     resp = rget(url, stream=True, allow_redirects=False)
@@ -297,7 +337,6 @@ async def rslinks(url: str) -> str:
     except:
         raise DDLException("Link Extraction Failed")
 
-
 async def shorter(url: str) -> str:
     try:
         cget = create_scraper().request
@@ -306,20 +345,17 @@ async def shorter(url: str) -> str:
     except:
         raise DDLException("Link Extraction Failed")
 
-
 async def appurl(url: str):
     cget = create_scraper().request
     resp = cget("GET", url, allow_redirects=False)
     soup = BeautifulSoup(resp.text, "html.parser")
     return soup.select('meta[property="og:url"]')[0]["content"]
 
-
 async def surl(url: str):
     cget = create_scraper().request
     resp = cget("GET", f"{url}+")
     soup = BeautifulSoup(resp.text, "html.parser")
     return soup.select('p[class="long-url"]')[0].string.split()[1]
-
 
 async def thinfi(url: str) -> str:
     try:
