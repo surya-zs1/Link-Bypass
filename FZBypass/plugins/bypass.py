@@ -18,13 +18,15 @@ from FZBypass.core.bot_utils import AuthChatsTopics, convert_time, BypassFilter
 @Bypass.on_message(command("start"))
 async def start_msg(client, message):
     await message.reply(
-        f"""<b><i>FZ Bypass Bot!</i></b>
+        f"""<b>Welcome to My Custom Bypass Bot!</b>
+        
+        <b>Modified for personal usage </b>
     
-    <i>A Powerful Elegant Multi Threaded Bot written in Python... which can Bypass Various Shortener Links, Scrape links, and More ... </i>
+    <i>This bot can quickly bypass various shortener links, scrape links, and more...</i>
     
-    <i><b>Bot Started {convert_time(time() - BOT_START)} ago...</b></i>
+    <i><b>Bot Uptime: {convert_time(time() - BOT_START)}</b></i>
 
-🛃 <b>Use Me Here :</b> @CyberPunkGrp <i>(Bypass Topic)</i>""",
+🛃 <b>Use Me Here :</b> U can't use this...<i>(Sorry..!!)</i>""",
         quote=True,
         reply_markup=InlineKeyboardMarkup(
             [
