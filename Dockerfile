@@ -1,12 +1,22 @@
-FROM python:3.10-slim-buster
+FROM python:3.10-slim-bullseye
 
 WORKDIR /app
 
-RUN apt-get -qq update --fix-missing && apt-get -qq upgrade -y && apt-get install git -y
+# Install system dependencies
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends git curl && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
+# Copy and install Python requirements
 COPY requirements.txt .
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy the rest of the application code
 COPY . .
 
-CMD ["bash","start.sh"]
+# Ensure the start script is executable
+RUN chmod +x start.sh
+
+# Command to run the bot
+CMD ["bash", "start.sh"]
